@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { proxyFetch, queryPath, type VercelReq, type VercelRes } from '../lib/proxy'
 
 export default async function handler(req: VercelReq, res: VercelRes) {

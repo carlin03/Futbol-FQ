@@ -68,7 +68,20 @@ export async function signUp(email: string, password: string, username: string, 
     },
   })
   if (error) throw new Error(error.message)
-  if (!data.user) throw new Error('No se pudo crear la cuenta')
+
+  if (!data.user) {
+    throw new Error('Ese email ya está registrado. Prueba iniciar sesión o usa otro email.')
+  }
+
+  const needsEmailConfirm = !data.session && data.user.identities?.length === 0
+  if (needsEmailConfirm) {
+    throw new Error('Ese email ya está registrado. Prueba iniciar sesión.')
+  }
+
+  if (!data.session) {
+    throw new Error('Cuenta creada. Revisa tu email para confirmar y luego inicia sesión.')
+  }
+
   return data
 }
 

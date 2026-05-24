@@ -25,6 +25,7 @@ export default function Setup({ onSetup }: Props) {
 
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotSuccess, setForgotSuccess] = useState('')
+  const [registerSuccess, setRegisterSuccess] = useState('')
   
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -132,12 +133,21 @@ export default function Setup({ onSetup }: Props) {
     }
 
     setLoading(true)
+    setRegisterSuccess('')
     try {
       const { user } = await signUp(regEmail, regPass, regUser, regFav)
       if (!user) throw new Error('No se pudo crear la cuenta')
       onSetup(user.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al registrarse')
+      const msg = err instanceof Error ? err.message : 'Error al registrarse'
+      if (msg.includes('Revisa tu email')) {
+        setRegisterSuccess(msg)
+        setMode('login')
+        setStep(1)
+        setError('')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -167,7 +177,7 @@ export default function Setup({ onSetup }: Props) {
 
         {/* Tabs: Login / Register */}
         <div style={{ display:'flex', gap:10, marginBottom:32, background:'rgba(255,255,255,.04)', borderRadius:12, padding:4 }}>
-          <button onClick={() => { setMode('login'); setStep(1); setError('') }}
+          <button onClick={() => { setMode('login'); setStep(1); setError(''); setRegisterSuccess('') }}
             style={{ flex:1, padding:12, borderRadius:10, border:'none', background:mode==='login'?'rgba(245,200,66,.15)':'transparent', color:mode==='login'?'var(--gold)':'var(--text2)', fontFamily:'Oswald,sans-serif', fontSize:14, fontWeight:700, cursor:'pointer', transition:'all .2s' }}>
             INICIAR SESIÓN
           </button>
@@ -234,6 +244,11 @@ export default function Setup({ onSetup }: Props) {
             {error && (
               <div style={{ color:'var(--red)', fontSize:12, marginBottom:16, display:'flex', alignItems:'center', gap:6, justifyContent:'center' }}>
                 {error}
+              </div>
+            )}
+            {registerSuccess && (
+              <div style={{ color:'var(--green)', fontSize:12, marginBottom:16, textAlign:'center' }}>
+                {registerSuccess}
               </div>
             )}
 
