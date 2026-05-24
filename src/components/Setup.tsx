@@ -344,14 +344,6 @@ export default function Setup({ onSetup }: Props) {
               ¿Olvidaste tu contraseña?
             </button>
 
-            {/* Demo users hint */}
-            <div style={{ marginTop:20, padding:12, background:'rgba(59,130,246,.1)', borderRadius:8, border:'1px solid rgba(59,130,246,.2)' }}>
-              <div style={{ color:'#3b82f6', fontSize:11, fontWeight:700, marginBottom:6 }}>📌 USUARIOS DE PRUEBA:</div>
-              <div style={{ color:'#7a88a8', fontSize:10, lineHeight:1.8 }}>
-                <div>Usuario: <strong>admin</strong> | Pass: <strong>admin123</strong></div>
-                <div>Usuario: <strong>jugador</strong> | Pass: <strong>123456</strong></div>
-              </div>
-            </div>
           </div>
         )}
 

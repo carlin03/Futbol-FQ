@@ -29,13 +29,8 @@ export interface FantasyLineup {
   captain?: string
 }
 
-const DEMO_USERS: User[] = [
-  { id: 'user_admin', username: 'admin', email: 'admin@fq26.com', password: 'admin123', favTeam: 'MEX' },
-  { id: 'user_jugador', username: 'jugador', email: 'jugador@fq26.com', password: '123456', favTeam: 'ARG' },
-]
-
 /** Sube este número para forzar borrado total en todos los dispositivos (local + Vercel). */
-export const STORAGE_VERSION = 2
+export const STORAGE_VERSION = 3
 const VERSION_KEY = 'wc_storage_version'
 
 export function clearAllAppData() {
@@ -50,7 +45,7 @@ export function clearAllAppData() {
 function applyFreshStorage() {
   clearAllAppData()
   localStorage.setItem(VERSION_KEY, String(STORAGE_VERSION))
-  localStorage.setItem('wc_users', JSON.stringify(DEMO_USERS))
+  localStorage.setItem('wc_users', JSON.stringify([]))
   seedDemoUserMeta()
 }
 
@@ -63,7 +58,7 @@ export function initStorage() {
 
   const users = getUsers()
   if (users.length === 0) {
-    localStorage.setItem('wc_users', JSON.stringify(DEMO_USERS))
+    localStorage.setItem('wc_users', JSON.stringify([]))
     seedDemoUserMeta()
   } else {
     seedDemoUserMeta()
