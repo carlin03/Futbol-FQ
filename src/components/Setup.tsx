@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { GROUPS, getFlagUrl } from '../data/worldcup'
-import { initStorage, getUserByEmail, resetPasswordByEmail } from '../utils/storage'
+import { initStorage, getUserByEmail, resetPasswordByEmail, addUser, setSession, ensureRankingParticipant, type User } from '../utils/storage'
 import { recordLogin } from '../utils/adminStats'
 
 const FLAG = (code: string) => getFlagUrl(code, 40)
@@ -9,14 +9,7 @@ interface Props {
   onSetup: (userId: string, username: string, fav: string) => void
 }
 
-// Base de datos simple de usuarios (en un proyecto real, sería backend)
-interface User {
-  id: string
-  username: string
-  email: string
-  password: string
-  favTeam: string
-}
+// Usuarios en localStorage (ver storage.ts)
 
 export default function Setup({ onSetup }: Props) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
@@ -77,20 +70,15 @@ export default function Setup({ onSetup }: Props) {
           return
         }
 
-        // Login exitoso
-        const userId = user.id
-        const username = user.username
-        const favTeam = user.favTeam || ''
-
-        localStorage.setItem('wc_session', JSON.stringify({
-          userId,
-          username,
-          favTeam,
-          loginTime: new Date().toISOString()
-        }))
-
-        recordLogin(userId)
-        onSetup(userId, username, favTeam)
+        setSession({
+          userId: user.id,
+          username: user.username,
+          favTeam: user.favTeam || '',
+          loginTime: new Date().toISOString(),
+        })
+        ensureRankingParticipant(user.id)
+        recordLogin(user.id)
+        onSetup(user.id, user.username, user.favTeam || '')
       } catch (err) {
         setError('Error al iniciar sesión')
       }
@@ -203,17 +191,13 @@ export default function Setup({ onSetup }: Props) {
           favTeam: regFav
         }
 
-        users.push(newUser)
-        localStorage.setItem('wc_users', JSON.stringify(users))
-
-        // Iniciar sesión automáticamente
-        localStorage.setItem('wc_session', JSON.stringify({
+        addUser(newUser)
+        setSession({
           userId: newUser.id,
           username: newUser.username,
           favTeam: newUser.favTeam,
-          loginTime: new Date().toISOString()
-        }))
-
+          loginTime: new Date().toISOString(),
+        })
         recordLogin(newUser.id)
         onSetup(newUser.id, newUser.username, newUser.favTeam)
       } catch (err) {

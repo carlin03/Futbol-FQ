@@ -165,6 +165,11 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
       )}
 
       <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        {filtered.length === 0 ? (
+          <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--text2)', fontSize: 14 }}>
+            Aún no hay jugadores en el ranking. Regístrate e inicia sesión para aparecer con 0 pts.
+          </p>
+        ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid var(--gold)' }}>
@@ -193,6 +198,7 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
             })}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   )

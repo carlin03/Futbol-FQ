@@ -1,5 +1,5 @@
 import { calcTotal, calcTotalByDay, calcFantasyTotal, calcFantasyByDay } from '../data/worldcup'
-import { seedDemoUserMeta } from './adminStats'
+import { ensureUserMeta, seedDemoUserMeta } from './adminStats'
 
 export interface User {
   id: string
@@ -63,6 +63,30 @@ export function initStorage() {
   } else {
     seedDemoUserMeta()
   }
+}
+
+export function addUser(user: User) {
+  const users = getUsers()
+  users.push(user)
+  localStorage.setItem('wc_users', JSON.stringify(users))
+  ensureRankingParticipant(user.id)
+}
+
+/** Asegura que el usuario aparece en ranking con 0 pts aunque no haya jugado aún. */
+export function ensureRankingParticipant(userId: string) {
+  if (!getUsers().some(u => u.id === userId)) return
+  if (localStorage.getItem(predsKey(userId)) == null) {
+    localStorage.setItem(predsKey(userId), JSON.stringify({}))
+  }
+  if (localStorage.getItem(fantasyKey(userId)) == null) {
+    localStorage.setItem(fantasyKey(userId), JSON.stringify({}))
+  }
+  ensureUserMeta(userId)
+}
+
+function sortRanking(list: RankingEntry[]) {
+  list.sort((a, b) => b.points - a.points || a.username.localeCompare(b.username, 'es'))
+  return list
 }
 
 export function getUserByEmail(email: string): User | undefined {
@@ -154,25 +178,21 @@ export interface RankingEntry {
 }
 
 export function getPredictionRanking(userId: string, day = 0): RankingEntry[] {
-  const users = getUsers()
-  const list = users.map(u => {
+  const list = getUsers().map(u => {
     const preds = getPredictions(u.id)
     const points = day === 0 ? calcTotal(preds) : calcTotalByDay(preds, day)
     return { userId: u.id, username: u.username, favTeam: u.favTeam, points, isUser: u.id === userId }
   })
-  list.sort((a, b) => b.points - a.points)
-  return list
+  return sortRanking(list)
 }
 
 export function getFantasyRanking(userId: string, day = 0): RankingEntry[] {
-  const users = getUsers()
-  const list = users.map(u => {
+  const list = getUsers().map(u => {
     const fantasy = getFantasyAll(u.id)
     const points = day === 0 ? calcFantasyTotal(fantasy) : calcFantasyByDay(fantasy, day)
     return { userId: u.id, username: u.username, favTeam: u.favTeam, points, isUser: u.id === userId }
   })
-  list.sort((a, b) => b.points - a.points)
-  return list
+  return sortRanking(list)
 }
 
 export interface UserProfile {

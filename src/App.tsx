@@ -15,7 +15,7 @@ import TeamDetail from './components/TeamDetail'
 import Quiniela from './components/Quiniela'
 import {
   getSession, setSession, getPredictions, setPredictions,
-  getFantasyAll, initStorage, type Session,
+  getFantasyAll, initStorage, ensureRankingParticipant, type Session,
 } from './utils/storage'
 import { trackPageVisit } from './utils/adminStats'
 import { useMatchDataSync } from './hooks/useLiveSync'
@@ -56,6 +56,11 @@ export default function App() {
   }
 
   useEffect(() => { initStorage() }, [])
+
+  useEffect(() => {
+    const s = getSession()
+    if (s?.userId) ensureRankingParticipant(s.userId)
+  }, [])
 
   useEffect(() => {
     if (session) trackPageVisit(page)
