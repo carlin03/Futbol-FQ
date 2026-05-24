@@ -1,31 +1,24 @@
-type Query = Record<string, string | string[] | undefined>
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-export type VercelReq = { method?: string; query: Query }
-export type VercelRes = {
-  status: (code: number) => VercelRes
-  setHeader: (name: string, value: string) => void
-  send: (body: string) => void
-  json: (body: unknown) => void
-  end: () => void
-}
-
-export function queryPath(req: VercelReq): string {
-  const segments = req.query.path
+export function queryPath(req: VercelRequest): string {
+  const segments = req.query?.path
   if (Array.isArray(segments)) return segments.join('/')
-  return segments ?? ''
+  if (typeof segments === 'string') return segments
+  return ''
 }
 
-export function forwardQuery(req: VercelReq, target: URL, skip = new Set(['path'])) {
-  Object.entries(req.query).forEach(([key, val]) => {
+export function forwardQuery(req: VercelRequest, target: URL, skip = new Set(['path'])) {
+  const query = req.query ?? {}
+  Object.entries(query).forEach(([key, val]) => {
     if (skip.has(key) || val == null) return
-    if (Array.isArray(val)) val.forEach(v => target.searchParams.append(key, v))
-    else target.searchParams.set(key, val)
+    if (Array.isArray(val)) val.forEach(v => target.searchParams.append(key, String(v)))
+    else target.searchParams.set(key, String(val))
   })
 }
 
 export async function proxyFetch(
-  req: VercelReq,
-  res: VercelRes,
+  req: VercelRequest,
+  res: VercelResponse,
   opts: {
     upstreamBase: string
     path: string

@@ -3,8 +3,10 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "ignoreDeprecations": "6.0",
     "strict": false,
     "skipLibCheck": true,
+    "esModuleInterop": true,
     "types": ["node"],
     "noEmit": true
   },

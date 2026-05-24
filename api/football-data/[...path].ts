@@ -1,7 +1,7 @@
-/// <reference types="node" />
-import { proxyFetch, queryPath, type VercelReq, type VercelRes } from '../lib/proxy'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { proxyFetch, queryPath } from '../lib/proxy'
 
-export default async function handler(req: VercelReq, res: VercelRes) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const token = process.env.FOOTBALL_DATA_TOKEN || process.env.VITE_FOOTBALL_DATA_TOKEN
   if (!token) {
     return res.status(503).json({
