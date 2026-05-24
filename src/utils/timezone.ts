@@ -60,7 +60,7 @@ export function formatInHostTzWithLocal(ms: number): string {
 }
 
 /** Hora del partido en zona sede (ET) */
-export function formatHostKickoff(calendarDay: number, kickoff: string, month = 6): string {
+export function formatHostKickoff(calendarDay: number, kickoff: string, _month = 6): string {
   const m = kickoff.match(/(\d{1,2}:\d{2})/)
   return m ? `${m[1]} ET` : formatKickoffET(kickoff)
 }

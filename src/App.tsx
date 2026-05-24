@@ -18,7 +18,7 @@ import {
   ensureUserProfile, profileToSession, fetchPredictions, savePredictions,
   fetchFantasyAll, saveFantasyAll, recordLogin, trackPageVisit, loadMatchStates,
 } from './services/database'
-import type { Session } from './utils/storage'
+import type { Session, Prediction, FantasyLineup } from './utils/storage'
 import { useMatchDataSync } from './hooks/useLiveSync'
 
 function Background() {
@@ -32,15 +32,15 @@ function Background() {
 
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured())
   const [page, setPageState] = useState('home')
   const [showAdmin, setShowAdmin] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [matchViewMode, setMatchViewMode] = useState<'info' | 'predict'>('predict')
   const [matchBackPage, setMatchBackPage] = useState('groups')
-  const [predictions, setPredictionsState] = useState<Record<string, any>>({})
-  const [fantasyAll, setFantasyAll] = useState<Record<number, any>>({})
+  const [predictions, setPredictionsState] = useState<Record<string, Prediction>>({})
+  const [fantasyAll, setFantasyAll] = useState<Record<number, FantasyLineup>>({})
 
   const hydrateUser = useCallback(async (userId: string) => {
     const profile = await ensureUserProfile(userId)
@@ -57,10 +57,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setAuthLoading(false)
-      return
-    }
+    if (!isSupabaseConfigured()) return
 
     loadMatchStates().catch(console.error)
 
@@ -126,12 +123,12 @@ export default function App() {
     await hydrateUser(uid)
   }
 
-  const handleSetPredictions = (p: Record<string, any>) => {
+  const handleSetPredictions = (p: Record<string, Prediction>) => {
     setPredictionsState(p)
     if (userId) savePredictions(userId, p).catch(console.error)
   }
 
-  const handleSetFantasyAll = (f: Record<number, any>) => {
+  const handleSetFantasyAll = (f: Record<number, FantasyLineup>) => {
     setFantasyAll(f)
     if (userId) saveFantasyAll(userId, f).catch(console.error)
   }
@@ -229,7 +226,7 @@ export default function App() {
             />
           )}
           {page === 'ranking' && (
-            <Leaderboard userId={userId} username={username} predictions={predictions} fantasyAll={fantasyAll} />
+            <Leaderboard userId={userId} predictions={predictions} fantasyAll={fantasyAll} />
           )}
           {page === 'forum' && <Forum userId={userId} username={username} />}
           {page === 'quiniela' && (

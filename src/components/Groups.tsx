@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { GROUPS, getAllMatches, formatCalendarDate } from '../data/worldcup'
+import { GROUPS, formatCalendarDate } from '../data/worldcup'
 import { groupScheduleByLocalDay, getLocalDayLabel } from '../data/calendar'
 import { formatLocalKickoffLabel } from '../utils/timezone'
 import { getFdGroupTable } from '../services/footballData'

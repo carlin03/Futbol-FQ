@@ -17,13 +17,11 @@ interface Props {
 
 export default function Profile({ userId, username, favTeam, predictions, fantasyAll, onBack, onProfileUpdate }: Props) {
   const [tab, setTab] = useState<'stats' | 'edit' | 'predictions' | 'fantasy'>('stats')
-  const [profile, setProfile] = useState({ bio: '', displayName: username, avatarColor: '#f5c842' })
   const [form, setForm] = useState({ displayName: username, bio: '', favTeam, avatarColor: '#f5c842' })
   const [saved, setSaved] = useState('')
 
   useEffect(() => {
     fetchUserProfile(userId, username).then(p => {
-      setProfile(p)
       setForm({ displayName: p.displayName || username, bio: p.bio, favTeam, avatarColor: p.avatarColor })
     }).catch(console.error)
   }, [userId, username, favTeam])
@@ -37,7 +35,6 @@ export default function Profile({ userId, username, favTeam, predictions, fantas
   const handleSave = async () => {
     try {
       await updateUserProfile(userId, { displayName: form.displayName, bio: form.bio, favTeam: form.favTeam, avatarColor: form.avatarColor })
-      setProfile({ displayName: form.displayName, bio: form.bio, avatarColor: form.avatarColor })
       setSaved('Perfil actualizado')
       onProfileUpdate?.(form.displayName, form.favTeam)
       setTimeout(() => setSaved(''), 2500)

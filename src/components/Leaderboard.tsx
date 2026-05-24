@@ -3,13 +3,12 @@ import { calcTotal, calcTotalByDay, calcFantasyTotal, calcFantasyByDay, getAllMa
 import { getLocalScheduleDays, getLocalDayLabel, getGroupJornadas } from '../data/calendar'
 import FlagImg from './FlagImg'
 import { fetchPredictionRanking, fetchFantasyRanking } from '../services/database'
-import type { RankingEntry } from '../utils/storage'
+import type { Prediction, FantasyLineup, RankingEntry } from '../utils/storage'
 
 interface Props {
   userId: string
-  username: string
-  predictions: Record<string, any>
-  fantasyAll: Record<number, any>
+  predictions: Record<string, Prediction>
+  fantasyAll: Record<number, FantasyLineup>
 }
 
 const PODIUM_COLORS = ['var(--gold)', '#c0c0c0', '#cd7f32']
@@ -17,7 +16,7 @@ const PODIUM_HEIGHTS = [140, 110, 90]
 
 type PhaseFilter = 'total' | 'groups' | 'knockout'
 
-export default function Leaderboard({ userId, username, predictions, fantasyAll }: Props) {
+export default function Leaderboard({ userId, predictions, fantasyAll }: Props) {
   const [mode, setMode] = useState<'quiniela' | 'fantasy'>('quiniela')
   const [phase, setPhase] = useState<PhaseFilter>('total')
   const [selectedDay, setSelectedDay] = useState(0)

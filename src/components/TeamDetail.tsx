@@ -20,30 +20,32 @@ export default function TeamDetail({ teamAbbr, onBack, onMatchClick }: Props) {
   const team = getTeamByAbbr(teamAbbr)
   const squad = getFullSquad(teamAbbr)
   const players = useMemo(() => {
-    const fromDb = getPlayersByTeam(team?.name || '')
+    if (!team) return []
+    const fromDb = getPlayersByTeam(team.name)
     if (fromDb.length >= squad.length) return fromDb
     return squad.map(s => ({
-      name: s.name, flag: team!.flag, team: team!.name, pos: s.pos, r: s.r, days: [], calendarDays: [],
+      name: s.name, flag: team.flag, team: team.name, pos: s.pos, r: s.r, days: [], calendarDays: [],
     }))
   }, [team, squad])
   const matches = useMemo(() => getTeamMatches(teamAbbr), [teamAbbr])
 
-  if (!team) return null
-
   const byPos = useMemo(() => {
     const map: Record<string, typeof players> = { gk: [], def: [], mid: [], fwd: [] }
+    if (!team) return map
     const source = players.length ? players : squad.map(s => ({
       name: s.name, flag: team.flag, team: team.name, pos: s.pos, r: s.r, days: [], calendarDays: [],
     }))
-    source.forEach(p => map[p.pos]?.push(p as any))
+    source.forEach(p => { map[p.pos]?.push(p) })
     Object.values(map).forEach(arr => arr.sort((a, b) => b.r - a.r))
     return map
   }, [players, squad, team])
 
-  const avgRating = Math.round(
-    (players.length ? players : squad).reduce((a, p) => a + p.r, 0) /
-    Math.max(1, (players.length ? players : squad).length)
-  )
+  const avgRating = team
+    ? Math.round(
+      (players.length ? players : squad).reduce((a, p) => a + p.r, 0) /
+      Math.max(1, (players.length ? players : squad).length)
+    )
+    : 0
 
   const starters = useMemo(() => {
     const pick = (pos: 'gk' | 'def' | 'mid' | 'fwd', n: number) => byPos[pos].slice(0, n)
@@ -54,6 +56,8 @@ export default function TeamDetail({ teamAbbr, onBack, onMatchClick }: Props) {
       ...pick('fwd', 3),
     ]
   }, [byPos])
+
+  if (!team) return null
 
   return (
     <div style={{ padding: '20px', maxWidth: 1200, margin: '0 auto' }}>
