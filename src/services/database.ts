@@ -123,6 +123,32 @@ export async function fetchProfile(userId: string): Promise<DbProfile | null> {
   return data as DbProfile | null
 }
 
+export async function ensureUserProfile(userId: string): Promise<DbProfile> {
+  const existing = await fetchProfile(userId)
+  if (existing) return existing
+
+  const sb = requireSupabase()
+  const { data: authData, error: authError } = await sb.auth.getUser()
+  if (authError || !authData.user || authData.user.id !== userId) {
+    throw new Error('No se pudo cargar tu perfil')
+  }
+
+  const user = authData.user
+  const meta = user.user_metadata || {}
+  const username = String(meta.username || user.email?.split('@')[0] || 'jugador').trim()
+  const row = {
+    id: userId,
+    username,
+    email: user.email || '',
+    fav_team: String(meta.fav_team || ''),
+    display_name: username,
+  }
+
+  const { data, error } = await sb.from('profiles').insert(row).select('*').single()
+  if (error) throw new Error(error.message)
+  return data as DbProfile
+}
+
 export async function profileToSession(profile: DbProfile): Promise<Session> {
   return {
     userId: profile.id,

@@ -51,20 +51,27 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
 
   const [ranking, setRanking] = useState<RankingEntry[]>([])
   const [rankingLoading, setRankingLoading] = useState(true)
+  const [rankingError, setRankingError] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setRankingLoading(true)
+    setRankingError('')
     const load = mode === 'quiniela'
       ? fetchPredictionRanking(userId, selectedDay)
       : fetchFantasyRanking(userId, selectedDay)
     load.then(data => {
       if (!cancelled) setRanking(data)
-    }).catch(console.error).finally(() => {
+    }).catch(err => {
+      if (!cancelled) {
+        setRankingError(err instanceof Error ? err.message : 'No se pudo cargar el ranking')
+        setRanking([])
+      }
+    }).finally(() => {
       if (!cancelled) setRankingLoading(false)
     })
     return () => { cancelled = true }
-  }, [mode, selectedDay, userId, predictions, fantasyAll])
+  }, [mode, selectedDay, userId])
 
   const userPoints = mode === 'quiniela' ? userQuinielaPts : userFantasyPts
   const userRank = ranking.findIndex(r => r.isUser) + 1
@@ -179,6 +186,10 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
       <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         {rankingLoading ? (
           <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--text2)' }}>Cargando ranking…</p>
+        ) : rankingError ? (
+          <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--red)', fontSize: 14 }}>
+            {rankingError}
+          </p>
         ) : filtered.length === 0 ? (
           <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--text2)', fontSize: 14 }}>
             Aún no hay jugadores en el ranking. Regístrate e inicia sesión para aparecer con 0 pts.

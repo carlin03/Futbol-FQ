@@ -15,7 +15,7 @@ import TeamDetail from './components/TeamDetail'
 import Quiniela from './components/Quiniela'
 import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import {
-  fetchProfile, profileToSession, fetchPredictions, savePredictions,
+  ensureUserProfile, profileToSession, fetchPredictions, savePredictions,
   fetchFantasyAll, saveFantasyAll, recordLogin, trackPageVisit, loadMatchStates,
 } from './services/database'
 import type { Session } from './utils/storage'
@@ -43,12 +43,15 @@ export default function App() {
   const [fantasyAll, setFantasyAll] = useState<Record<number, any>>({})
 
   const hydrateUser = useCallback(async (userId: string) => {
-    const profile = await fetchProfile(userId)
-    if (!profile) return
+    const profile = await ensureUserProfile(userId)
     const s = await profileToSession(profile)
     setSessionState(s)
-    setPredictionsState(await fetchPredictions(userId))
-    setFantasyAll(await fetchFantasyAll(userId))
+    const [preds, fantasy] = await Promise.all([
+      fetchPredictions(userId),
+      fetchFantasyAll(userId),
+    ])
+    setPredictionsState(preds)
+    setFantasyAll(fantasy)
     await recordLogin(userId)
   }, [])
 
