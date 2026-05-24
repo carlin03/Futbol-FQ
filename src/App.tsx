@@ -19,6 +19,8 @@ import {
   fetchFantasyAll, saveFantasyAll, recordLogin, trackPageVisit, loadMatchStates,
 } from './services/database'
 import type { Session, Prediction, FantasyLineup } from './utils/storage'
+import type { AuthUserMeta } from './utils/authMeta'
+import { authMetaFromUser } from './utils/authMeta'
 import { useMatchDataSync } from './hooks/useLiveSync'
 
 function Background() {
@@ -30,18 +32,8 @@ function Background() {
   )
 }
 
-function authMetaFromUser(user: { email?: string; user_metadata?: Record<string, unknown> }) {
-  const meta = user.user_metadata || {}
-  return {
-    email: user.email,
-    username: meta.username != null ? String(meta.username) : undefined,
-    favTeam: meta.fav_team != null ? String(meta.fav_team) : undefined,
-  }
-}
-
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(null)
-  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured())
   const [page, setPageState] = useState('home')
   const [showAdmin, setShowAdmin] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
@@ -51,10 +43,7 @@ export default function App() {
   const [predictions, setPredictionsState] = useState<Record<string, Prediction>>({})
   const [fantasyAll, setFantasyAll] = useState<Record<number, FantasyLineup>>({})
 
-  const hydrateUser = useCallback(async (
-    userId: string,
-    fromAuth?: { email?: string; username?: string; favTeam?: string },
-  ) => {
+  const hydrateUser = useCallback(async (userId: string, fromAuth?: AuthUserMeta) => {
     const profile = await ensureUserProfile(userId, fromAuth)
     const s = await profileToSession(profile)
     setSessionState(s)
@@ -77,42 +66,36 @@ export default function App() {
     let mounted = true
     let subscription: { unsubscribe: () => void } | null = null
 
-    const safetyTimer = window.setTimeout(() => {
-      if (mounted) setAuthLoading(false)
-    }, 8000)
-
     void (async () => {
       try {
         const { data, error } = await sb.auth.getSession()
         if (!mounted) return
         if (error) throw error
 
-        const { data: { subscription: sub } } = sb.auth.onAuthStateChange((event, authSession) => {
-          if (event === 'INITIAL_SESSION') return
-          if (authSession?.user) {
-            void hydrateUser(authSession.user.id, authMetaFromUser(authSession.user)).catch(console.error)
-          } else {
-            setSessionState(null)
-            setPredictionsState({})
-            setFantasyAll({})
-          }
-        })
-        subscription = sub
-
         if (data.session?.user) {
           void hydrateUser(data.session.user.id, authMetaFromUser(data.session.user)).catch(console.error)
         }
       } catch (err) {
         console.error('Error al cargar sesión:', err)
-      } finally {
-        window.clearTimeout(safetyTimer)
-        if (mounted) setAuthLoading(false)
       }
+
+      if (!mounted) return
+
+      const { data: { subscription: sub } } = sb.auth.onAuthStateChange((event, authSession) => {
+        if (event === 'INITIAL_SESSION') return
+        if (authSession?.user) {
+          void hydrateUser(authSession.user.id, authMetaFromUser(authSession.user)).catch(console.error)
+        } else {
+          setSessionState(null)
+          setPredictionsState({})
+          setFantasyAll({})
+        }
+      })
+      subscription = sub
     })()
 
     return () => {
       mounted = false
-      window.clearTimeout(safetyTimer)
       subscription?.unsubscribe()
     }
   }, [hydrateUser])
@@ -141,15 +124,10 @@ export default function App() {
   const username = session?.username || ''
   const favTeam = session?.favTeam || ''
 
-  const handleSetup = async (uid: string) => {
-    setAuthLoading(true)
-    try {
-      const sb = requireSupabase()
-      const { data } = await sb.auth.getUser()
-      await hydrateUser(uid, data.user ? authMetaFromUser(data.user) : undefined)
-    } finally {
-      setAuthLoading(false)
-    }
+  const handleSetup = (uid: string, meta?: AuthUserMeta) => {
+    void hydrateUser(uid, meta).catch(err => {
+      console.error('Error al entrar:', err)
+    })
   }
 
   const handleSetPredictions = (p: Record<string, Prediction>) => {
@@ -169,17 +147,6 @@ export default function App() {
     : page.startsWith('match_') ? matchBackPage
     : page === 'profile' ? 'home'
     : page
-
-  if (authLoading) {
-    return (
-      <>
-        <Background />
-        <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)' }}>
-          Cargando…
-        </div>
-      </>
-    )
-  }
 
   if (!isSupabaseConfigured()) {
     return (

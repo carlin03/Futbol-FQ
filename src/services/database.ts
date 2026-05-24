@@ -131,26 +131,15 @@ export async function ensureUserProfile(
   if (existing) return existing
 
   const sb = requireSupabase()
-  let email = fromAuth?.email ?? ''
-  let username = fromAuth?.username?.trim()
+  const email = fromAuth?.email?.trim() || ''
+  const username = fromAuth?.username?.trim() || email.split('@')[0] || `jugador_${userId.slice(0, 8)}`
   const favTeam = fromAuth?.favTeam ?? ''
-
-  if (!email || !username) {
-    const { data: authData, error: authError } = await sb.auth.getUser()
-    if (authError || !authData.user || authData.user.id !== userId) {
-      throw new Error('No se pudo cargar tu perfil')
-    }
-    const user = authData.user
-    const meta = user.user_metadata || {}
-    email = user.email || email
-    username = String(meta.username || user.email?.split('@')[0] || 'jugador').trim()
-  }
 
   const row = {
     id: userId,
     username,
     email,
-    fav_team: favTeam || '',
+    fav_team: favTeam,
     display_name: username,
   }
 

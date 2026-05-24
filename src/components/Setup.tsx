@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { GROUPS, getFlagUrl } from '../data/worldcup'
 import { signIn, signUp, sendPasswordReset, isUsernameTaken } from '../services/database'
+import type { AuthUserMeta } from '../utils/authMeta'
+import { authMetaFromUser } from '../utils/authMeta'
 
 const FLAG = (code: string) => getFlagUrl(code, 40)
 
 interface Props {
-  onSetup: (userId: string) => void
+  onSetup: (userId: string, meta?: AuthUserMeta) => void
 }
 
 export default function Setup({ onSetup }: Props) {
@@ -51,7 +53,7 @@ export default function Setup({ onSetup }: Props) {
     try {
       const { user } = await signIn(loginUser, loginPass)
       if (!user) throw new Error('Usuario o contraseña incorrectos')
-      onSetup(user.id)
+      onSetup(user.id, authMetaFromUser(user))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
     } finally {
@@ -137,7 +139,7 @@ export default function Setup({ onSetup }: Props) {
     try {
       const { user } = await signUp(regEmail, regPass, regUser, regFav)
       if (!user) throw new Error('No se pudo crear la cuenta')
-      onSetup(user.id)
+      onSetup(user.id, { email: regEmail.trim().toLowerCase(), username: regUser.trim(), favTeam: regFav })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al registrarse'
       if (msg.includes('Revisa tu email')) {
