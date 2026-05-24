@@ -30,13 +30,21 @@ export default function Admin({ onClose, sync, session }: { onClose: () => void;
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [editUser, setEditUser] = useState<{ id: string; username: string; email: string; favTeam: string } | null>(null)
   const [stats, setStats] = useState<Awaited<ReturnType<typeof fetchAdminStats>> | null>(null)
+  const [statsError, setStatsError] = useState('')
   const ADMIN_PASSWORD = 'mundial2026'
 
   const bump = () => setRefresh(r => r + 1)
 
   useEffect(() => {
     if (!authenticated) return
-    fetchAdminStats().then(setStats).catch(console.error)
+    setStatsError('')
+    setStats(null)
+    fetchAdminStats()
+      .then(setStats)
+      .catch(err => {
+        console.error(err)
+        setStatsError(err instanceof Error ? err.message : 'No se pudo cargar el panel')
+      })
   }, [refresh, authenticated])
 
   if (!authenticated) {
@@ -54,8 +62,16 @@ export default function Admin({ onClose, sync, session }: { onClose: () => void;
 
   if (!stats) {
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)' }}>
-        Cargando panel admin…
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', gap: 16, padding: 24 }}>
+        {statsError ? (
+          <>
+            <p style={{ color: 'var(--red)', margin: 0, textAlign: 'center' }}>{statsError}</p>
+            <button onClick={bump} style={{ background: 'var(--gold)', color: '#000', padding: '10px 20px', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Reintentar</button>
+            <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text)', padding: '10px 20px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}>Cerrar</button>
+          </>
+        ) : (
+          <p style={{ margin: 0 }}>Cargando panel admin…</p>
+        )}
       </div>
     )
   }

@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { GROUPS, getFlagUrl } from '../data/worldcup'
 import { signIn, signUp, sendPasswordReset, isUsernameTaken } from '../services/database'
 import type { AuthUserMeta } from '../utils/authMeta'
-import { authMetaFromUser } from '../utils/authMeta'
 
 const FLAG = (code: string) => getFlagUrl(code, 40)
 
 interface Props {
-  onSetup: (userId: string, meta?: AuthUserMeta) => void
+  onSetup: (userId: string, meta?: AuthUserMeta) => void | Promise<void>
 }
 
 export default function Setup({ onSetup }: Props) {
@@ -53,7 +52,11 @@ export default function Setup({ onSetup }: Props) {
     try {
       const { user } = await signIn(loginUser, loginPass)
       if (!user) throw new Error('Usuario o contraseña incorrectos')
-      onSetup(user.id, authMetaFromUser(user))
+      await onSetup(user.id, {
+        email: user.email,
+        username: user.user_metadata?.username != null ? String(user.user_metadata.username) : undefined,
+        favTeam: user.user_metadata?.fav_team != null ? String(user.user_metadata.fav_team) : undefined,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
     } finally {
@@ -139,7 +142,7 @@ export default function Setup({ onSetup }: Props) {
     try {
       const { user } = await signUp(regEmail, regPass, regUser, regFav)
       if (!user) throw new Error('No se pudo crear la cuenta')
-      onSetup(user.id, { email: regEmail.trim().toLowerCase(), username: regUser.trim(), favTeam: regFav })
+      await onSetup(user.id, { email: regEmail.trim().toLowerCase(), username: regUser.trim(), favTeam: regFav })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al registrarse'
       if (msg.includes('Revisa tu email')) {
