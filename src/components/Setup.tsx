@@ -1,15 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { GROUPS, getFlagUrl } from '../data/worldcup'
-import { initStorage, getUserByEmail, resetPasswordByEmail, addUser, setSession, ensureRankingParticipant, type User } from '../utils/storage'
-import { recordLogin } from '../utils/adminStats'
+import { signIn, signUp, sendPasswordReset, isUsernameTaken } from '../services/database'
 
 const FLAG = (code: string) => getFlagUrl(code, 40)
 
 interface Props {
-  onSetup: (userId: string, username: string, fav: string) => void
+  onSetup: (userId: string) => void
 }
-
-// Usuarios en localStorage (ver storage.ts)
 
 export default function Setup({ onSetup }: Props) {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
@@ -27,14 +24,10 @@ export default function Setup({ onSetup }: Props) {
   const [regFav, setRegFav] = useState('')
 
   const [forgotEmail, setForgotEmail] = useState('')
-  const [forgotPass, setForgotPass] = useState('')
-  const [forgotPassConfirm, setForgotPassConfirm] = useState('')
   const [forgotSuccess, setForgotSuccess] = useState('')
   
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => { initStorage() }, [])
 
   const allTeams = GROUPS.flatMap(g => g.matches.flatMap(m => [m.home, m.away]))
   const unique = Array.from(new Map(allTeams.map(t => [t.abbr, t])).values())
@@ -54,69 +47,36 @@ export default function Setup({ onSetup }: Props) {
     }
 
     setLoading(true)
-    
-    // Simulamos verificación en backend
-    setTimeout(() => {
-      try {
-        const users = JSON.parse(localStorage.getItem('wc_users') || '[]') as User[]
-        const user = users.find(u => 
-          (u.username === loginUser || u.email === loginUser) && 
-          u.password === loginPass
-        )
-
-        if (!user) {
-          setError('Usuario o contraseña incorrectos')
-          setLoading(false)
-          return
-        }
-
-        setSession({
-          userId: user.id,
-          username: user.username,
-          favTeam: user.favTeam || '',
-          loginTime: new Date().toISOString(),
-        })
-        ensureRankingParticipant(user.id)
-        recordLogin(user.id)
-        onSetup(user.id, user.username, user.favTeam || '')
-      } catch (err) {
-        setError('Error al iniciar sesión')
-      }
+    try {
+      const { user } = await signIn(loginUser, loginPass)
+      if (!user) throw new Error('Usuario o contraseña incorrectos')
+      onSetup(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
-  // ==================== FORGOT PASSWORD ====================
-  const handleForgotPassword = () => {
+  const handleForgotPassword = async () => {
     setError('')
     setForgotSuccess('')
     if (!forgotEmail.includes('@')) {
       setError('Ingresa un email válido')
       return
     }
-    if (!getUserByEmail(forgotEmail)) {
-      setError('No hay cuenta con ese email')
-      return
-    }
-    if (forgotPass.length < 6) {
-      setError('La nueva contraseña debe tener al menos 6 caracteres')
-      return
-    }
-    if (forgotPass !== forgotPassConfirm) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
-    if (resetPasswordByEmail(forgotEmail, forgotPass)) {
-      setForgotSuccess('Contraseña actualizada. Ya puedes iniciar sesión.')
-      setForgotPass('')
-      setForgotPassConfirm('')
-    } else {
-      setError('No se pudo restablecer la contraseña')
+    setLoading(true)
+    try {
+      await sendPasswordReset(forgotEmail)
+      setForgotSuccess('Te enviamos un enlace a tu email para restablecer la contraseña.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar el enlace')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // ==================== REGISTER ====================
-  const handleRegisterStep1 = () => {
+  const handleRegisterStep1 = async () => {
     setError('')
     
     if (!regUser.trim()) {
@@ -132,8 +92,7 @@ export default function Setup({ onSetup }: Props) {
       return
     }
 
-    const users = JSON.parse(localStorage.getItem('wc_users') || '[]') as User[]
-    if (users.find(u => u.username === regUser)) {
+    if (await isUsernameTaken(regUser)) {
       setError('Este usuario ya existe')
       return
     }
@@ -142,11 +101,6 @@ export default function Setup({ onSetup }: Props) {
       setError('Ingresa un email válido')
       return
     }
-    if (users.find(u => u.email === regEmail)) {
-      setError('Este email ya está registrado')
-      return
-    }
-
     setStep(2)
   }
 
@@ -178,33 +132,15 @@ export default function Setup({ onSetup }: Props) {
     }
 
     setLoading(true)
-
-    setTimeout(() => {
-      try {
-        const users = JSON.parse(localStorage.getItem('wc_users') || '[]') as User[]
-        
-        const newUser: User = {
-          id: `user_${Date.now()}`,
-          username: regUser,
-          email: regEmail,
-          password: regPass,
-          favTeam: regFav
-        }
-
-        addUser(newUser)
-        setSession({
-          userId: newUser.id,
-          username: newUser.username,
-          favTeam: newUser.favTeam,
-          loginTime: new Date().toISOString(),
-        })
-        recordLogin(newUser.id)
-        onSetup(newUser.id, newUser.username, newUser.favTeam)
-      } catch (err) {
-        setError('Error al registrarse')
-      }
+    try {
+      const { user } = await signUp(regEmail, regPass, regUser, regFav)
+      if (!user) throw new Error('No se pudo crear la cuenta')
+      onSetup(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al registrarse')
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
   return (
@@ -335,26 +271,18 @@ export default function Setup({ onSetup }: Props) {
         {mode === 'forgot' && (
           <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', borderRadius:16, padding:32, animation:'fadeUp 0.5s ease' }}>
             <div style={{ color:'var(--text)', fontSize:18, fontWeight:600, marginBottom:6 }}>Recuperar contraseña</div>
-            <div style={{ color:'var(--text3)', fontSize:13, marginBottom:24 }}>Introduce tu email y una nueva contraseña</div>
+            <div style={{ color:'var(--text3)', fontSize:13, marginBottom:24 }}>Te enviaremos un enlace a tu email</div>
 
             <input type="email" placeholder="Correo electrónico" value={forgotEmail}
               onChange={e => { setForgotEmail(e.target.value); setError(''); setForgotSuccess('') }}
-              style={{ width:'100%', background:'rgba(255,255,255,.06)', border:`1px solid ${error ? 'var(--red)' : 'rgba(255,255,255,.1)'}`, borderRadius:10, color:'var(--text)', padding:'14px 18px', fontSize:15, outline:'none', marginBottom:12, boxSizing:'border-box' }} />
-
-            <input type="password" placeholder="Nueva contraseña (mín. 6)" value={forgotPass}
-              onChange={e => { setForgotPass(e.target.value); setError('') }}
-              style={{ width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, color:'var(--text)', padding:'14px 18px', fontSize:15, outline:'none', marginBottom:12, boxSizing:'border-box' }} />
-
-            <input type="password" placeholder="Confirmar nueva contraseña" value={forgotPassConfirm}
-              onChange={e => { setForgotPassConfirm(e.target.value); setError('') }}
-              style={{ width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, color:'var(--text)', padding:'14px 18px', fontSize:15, outline:'none', marginBottom:16, boxSizing:'border-box' }} />
+              style={{ width:'100%', background:'rgba(255,255,255,.06)', border:`1px solid ${error ? 'var(--red)' : 'rgba(255,255,255,.1)'}`, borderRadius:10, color:'var(--text)', padding:'14px 18px', fontSize:15, outline:'none', marginBottom:16, boxSizing:'border-box' }} />
 
             {error && <div style={{ color:'var(--red)', fontSize:12, marginBottom:12 }}>{error}</div>}
             {forgotSuccess && <div style={{ color:'var(--green)', fontSize:12, marginBottom:12 }}>{forgotSuccess}</div>}
 
-            <button onClick={handleForgotPassword}
-              style={{ width:'100%', padding:14, background:'var(--gold)', border:'none', borderRadius:10, color:'#0a0a0a', fontFamily:'Oswald,sans-serif', fontSize:16, fontWeight:700, cursor:'pointer', marginBottom:12 }}>
-              RESTABLECER CONTRASEÑA
+            <button onClick={handleForgotPassword} disabled={loading}
+              style={{ width:'100%', padding:14, background:'var(--gold)', border:'none', borderRadius:10, color:'#0a0a0a', fontFamily:'Oswald,sans-serif', fontSize:16, fontWeight:700, cursor: loading ? 'default' : 'pointer', marginBottom:12, opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'ENVIANDO…' : 'ENVIAR ENLACE'}
             </button>
             <button type="button" onClick={() => { setMode('login'); setError('') }}
               style={{ width:'100%', padding:12, background:'transparent', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, color:'var(--text2)', cursor:'pointer' }}>

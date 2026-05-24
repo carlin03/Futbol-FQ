@@ -3,7 +3,8 @@ import {
   getPlayersForLocalDay, calcFantasyLineupPts, getPlayerStatsForLocalDay, calcFantasyPlayerPts,
 } from '../data/worldcup'
 import { getLocalScheduleDays, getLocalDayLabel, isKnockoutLocalKey, isFantasyLocked, formatFantasyDeadline } from '../data/calendar'
-import { setFantasyDay, type FantasyLineup } from '../utils/storage'
+import { saveFantasyDay } from '../services/database'
+import type { FantasyLineup } from '../utils/storage'
 import FlagImg from './FlagImg'
 import { IconCalendar, IconFantasy } from './Icons'
 
@@ -196,7 +197,7 @@ export default function Fantasy({ userId, fantasyAll, setFantasyAll }: Props) {
   const handleSave = () => {
     if (!isComplete || locked) return
     const lineup: FantasyLineup = { formation, players, subs, captain: captain || undefined }
-    setFantasyDay(userId, selectedDay, lineup)
+    saveFantasyDay(userId, selectedDay, lineup).catch(console.error)
     setFantasyAll({ ...fantasyAll, [selectedDay]: lineup })
     setSavedMsg('Equipo guardado')
     setTimeout(() => setSavedMsg(''), 2500)

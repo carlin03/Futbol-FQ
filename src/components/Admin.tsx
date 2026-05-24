@@ -1,11 +1,11 @@
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
-  getAdminStats, deleteUser, adminUpdateUser,
   formatDuration, formatRelativeTime, getSessionDuration, PAGE_LABELS,
 } from '../utils/adminStats'
+import { fetchAdminStats, deleteUserAccount, adminUpdateUser } from '../services/database'
+import type { Session } from '../utils/storage'
 import { formatLocalKickoffLabel } from '../utils/timezone'
 import FlagImg from './FlagImg'
-import { getSession } from '../utils/storage'
 import { getAllMatches } from '../data/worldcup'
 import { getMatchLiveState, setMatchLiveState, type MatchEvent } from '../data/matchState'
 import { readFixtureMap, type LiveSyncMeta } from '../services/apiFootball'
@@ -22,19 +22,22 @@ type SyncPanelProps = {
   runMapping: () => Promise<void>
 }
 
-export default function Admin({ onClose, sync }: { onClose: () => void; sync: SyncPanelProps }) {
+export default function Admin({ onClose, sync, session }: { onClose: () => void; sync: SyncPanelProps; session: Session | null }) {
   const [password, setPassword] = useState('')
   const [authenticated, setAuthenticated] = useState(false)
   const [tab, setTab] = useState('dashboard')
   const [refresh, setRefresh] = useState(0)
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [editUser, setEditUser] = useState<{ id: string; username: string; email: string; favTeam: string } | null>(null)
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof fetchAdminStats>> | null>(null)
   const ADMIN_PASSWORD = 'mundial2026'
 
-  const stats = useMemo(() => getAdminStats(), [refresh, authenticated])
-  const session = getSession()
-
   const bump = () => setRefresh(r => r + 1)
+
+  useEffect(() => {
+    if (!authenticated) return
+    fetchAdminStats().then(setStats).catch(console.error)
+  }, [refresh, authenticated])
 
   if (!authenticated) {
     return (
@@ -45,6 +48,14 @@ export default function Admin({ onClose, sync }: { onClose: () => void; sync: Sy
           <button onClick={() => password === ADMIN_PASSWORD && setAuthenticated(true)} style={{ background: 'var(--gold)', color: '#000', padding: '10px 24px', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', marginRight: 10 }}>Entrar</button>
           <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text)', padding: '10px 24px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}>Cancelar</button>
         </div>
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)' }}>
+        Cargando panel admin…
       </div>
     )
   }
@@ -178,7 +189,7 @@ export default function Admin({ onClose, sync }: { onClose: () => void; sync: Sy
                               <div>
                                 <strong style={{ color: 'var(--gold)' }}>Acciones</strong>
                                 <button
-                                  onClick={() => { if (confirm(`Eliminar ${r.user.username}?`)) { deleteUser(r.user.id); bump() } }}
+                                  onClick={() => { if (confirm(`Eliminar ${r.user.username}?`)) { deleteUserAccount(r.user.id).then(bump).catch(console.error) } }}
                                   style={{ display: 'block', marginTop: 8, background: 'rgba(239,68,68,.15)', border: '1px solid var(--red)', color: 'var(--red)', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
                                 >
                                   Eliminar usuario
@@ -231,7 +242,7 @@ export default function Admin({ onClose, sync }: { onClose: () => void; sync: Sy
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                <button onClick={() => { adminUpdateUser(editUser.id, editUser); setEditUser(null); bump() }} style={{ flex: 1, padding: 12, background: 'var(--gold)', border: 'none', borderRadius: 6, fontWeight: 700, cursor: 'pointer', color: '#000' }}>Guardar</button>
+                <button onClick={() => { adminUpdateUser(editUser.id, editUser).then(() => { setEditUser(null); bump() }).catch(console.error) }} style={{ flex: 1, padding: 12, background: 'var(--gold)', border: 'none', borderRadius: 6, fontWeight: 700, cursor: 'pointer', color: '#000' }}>Guardar</button>
                 <button onClick={() => setEditUser(null)} style={{ flex: 1, padding: 12, background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', cursor: 'pointer' }}>Cancelar</button>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Setup from './components/Setup'
 import Header from './components/Header'
 import Home from './components/Home'
@@ -13,11 +13,12 @@ import Profile from './components/Profile'
 import Stats from './components/Stats'
 import TeamDetail from './components/TeamDetail'
 import Quiniela from './components/Quiniela'
+import { isSupabaseConfigured, requireSupabase } from './lib/supabase'
 import {
-  getSession, setSession, getPredictions, setPredictions,
-  getFantasyAll, initStorage, ensureRankingParticipant, type Session,
-} from './utils/storage'
-import { trackPageVisit } from './utils/adminStats'
+  fetchProfile, profileToSession, fetchPredictions, savePredictions,
+  fetchFantasyAll, saveFantasyAll, recordLogin, trackPageVisit, loadMatchStates,
+} from './services/database'
+import type { Session } from './utils/storage'
 import { useMatchDataSync } from './hooks/useLiveSync'
 
 function Background() {
@@ -30,14 +31,52 @@ function Background() {
 }
 
 export default function App() {
-  const [session, setSessionState] = useState<Session | null>(() => getSession())
+  const [session, setSessionState] = useState<Session | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [page, setPageState] = useState('home')
   const [showAdmin, setShowAdmin] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [matchViewMode, setMatchViewMode] = useState<'info' | 'predict'>('predict')
-
   const [matchBackPage, setMatchBackPage] = useState('groups')
+  const [predictions, setPredictionsState] = useState<Record<string, any>>({})
+  const [fantasyAll, setFantasyAll] = useState<Record<number, any>>({})
+
+  const hydrateUser = useCallback(async (userId: string) => {
+    const profile = await fetchProfile(userId)
+    if (!profile) return
+    const s = await profileToSession(profile)
+    setSessionState(s)
+    setPredictionsState(await fetchPredictions(userId))
+    setFantasyAll(await fetchFantasyAll(userId))
+    await recordLogin(userId)
+  }, [])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setAuthLoading(false)
+      return
+    }
+    loadMatchStates().catch(console.error)
+
+    const sb = requireSupabase()
+    sb.auth.getSession().then(async ({ data }) => {
+      if (data.session?.user) await hydrateUser(data.session.user.id)
+      setAuthLoading(false)
+    })
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, authSession) => {
+      if (authSession?.user) {
+        await hydrateUser(authSession.user.id)
+      } else {
+        setSessionState(null)
+        setPredictionsState({})
+        setFantasyAll({})
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [hydrateUser])
 
   const setPage = (p: string) => {
     if (p === 'livedata') {
@@ -55,47 +94,26 @@ export default function App() {
     setPageState(`match_${id}`)
   }
 
-  useEffect(() => { initStorage() }, [])
-
   useEffect(() => {
-    const s = getSession()
-    if (s?.userId) ensureRankingParticipant(s.userId)
-  }, [])
-
-  useEffect(() => {
-    if (session) trackPageVisit(page)
+    if (session?.userId) trackPageVisit(session.userId, page).catch(console.error)
   }, [page, session?.userId])
 
   const userId = session?.userId || ''
   const username = session?.username || ''
   const favTeam = session?.favTeam || ''
 
-  const [predictions, setPredictionsState] = useState<Record<string, any>>(() =>
-    userId ? getPredictions(userId) : {}
-  )
-
-  const [fantasyAll, setFantasyAll] = useState<Record<number, any>>(() =>
-    userId ? getFantasyAll(userId) : {}
-  )
-
-  const handleSetup = (userId: string, uname: string, fav: string) => {
-    const s: Session = { userId, username: uname, favTeam: fav, loginTime: new Date().toISOString() }
-    setSession(s)
-    setSessionState(s)
-    setPredictionsState(getPredictions(userId))
-    setFantasyAll(getFantasyAll(userId))
+  const handleSetup = async (uid: string) => {
+    await hydrateUser(uid)
   }
 
   const handleSetPredictions = (p: Record<string, any>) => {
     setPredictionsState(p)
-    if (userId) setPredictions(userId, p)
+    if (userId) savePredictions(userId, p).catch(console.error)
   }
 
   const handleSetFantasyAll = (f: Record<number, any>) => {
     setFantasyAll(f)
-    if (userId) {
-      localStorage.setItem(`wc_fantasy_${userId}`, JSON.stringify(f))
-    }
+    if (userId) saveFantasyAll(userId, f).catch(console.error)
   }
 
   const matchSync = useMatchDataSync(!!session)
@@ -105,6 +123,31 @@ export default function App() {
     : page.startsWith('match_') ? matchBackPage
     : page === 'profile' ? 'home'
     : page
+
+  if (authLoading) {
+    return (
+      <>
+        <Background />
+        <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)' }}>
+          Cargando…
+        </div>
+      </>
+    )
+  }
+
+  if (!isSupabaseConfigured()) {
+    return (
+      <>
+        <Background />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 520, margin: '80px auto', padding: 24, textAlign: 'center', color: 'var(--text)' }}>
+          <h1 style={{ color: 'var(--gold)' }}>Falta Supabase</h1>
+          <p style={{ color: 'var(--text2)', lineHeight: 1.6 }}>
+            Añade <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code> en Vercel → Environment Variables y en tu archivo <code>.env</code> local.
+          </p>
+        </div>
+      </>
+    )
+  }
 
   if (!session) {
     return (
@@ -122,6 +165,7 @@ export default function App() {
       <Background />
       {showAdmin && (
         <Admin
+          session={session}
           onClose={() => setShowAdmin(false)}
           sync={{
             source: matchSync.source,
@@ -144,6 +188,7 @@ export default function App() {
               setPage={setPage}
               predictions={predictions}
               username={username}
+              userId={userId}
               onMatchClick={(m) => openMatch(m, 'predict')}
             />
           )}
@@ -166,7 +211,7 @@ export default function App() {
           {page === 'ranking' && (
             <Leaderboard userId={userId} username={username} predictions={predictions} fantasyAll={fantasyAll} />
           )}
-          {page === 'forum' && <Forum username={username} />}
+          {page === 'forum' && <Forum userId={userId} username={username} />}
           {page === 'quiniela' && (
             <Quiniela
               predictions={predictions}
@@ -192,9 +237,8 @@ export default function App() {
               predictions={predictions}
               fantasyAll={fantasyAll}
               onBack={() => setPageState('home')}
-              onProfileUpdate={(uname, fav) => {
-                const s = { userId, username: uname, favTeam: fav, loginTime: new Date().toISOString() }
-                setSession(s)
+              onProfileUpdate={async (uname, fav) => {
+                const s = { userId, username: uname, favTeam: fav, loginTime: session.loginTime }
                 setSessionState(s)
               }}
             />

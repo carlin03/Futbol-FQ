@@ -8,6 +8,7 @@ interface Props {
   setPage: (p: string) => void
   predictions: Record<string, any>
   username: string
+  userId: string
   onMatchClick?: (matchId: string) => void
 }
 
@@ -55,7 +56,7 @@ function StatBar({ label, value, max, color }: { label: string; value: number; m
   )
 }
 
-export default function Home({ setPage, predictions, username, onMatchClick }: Props) {
+export default function Home({ setPage, predictions, username, userId, onMatchClick }: Props) {
   const allMatches = getAllMatches()
   const totalPredictions = Object.keys(predictions).filter(k => predictions[k]).length
   const totalPoints = calcTotal(predictions)
@@ -130,7 +131,7 @@ export default function Home({ setPage, predictions, username, onMatchClick }: P
             ))}          </div>
         </div>
 
-        <ForumWidget username={username} compact maxPosts={4} onViewAll={() => setPage('forum')} />
+        <ForumWidget userId={userId} username={username} compact maxPosts={4} onViewAll={() => setPage('forum')} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>

@@ -1,3 +1,4 @@
+import { getCachedMatchStates, loadMatchStates, saveMatchState } from '../services/database'
 import type { Match } from './worldcup'
 
 export interface MatchEvent {
@@ -16,32 +17,19 @@ export interface MatchLiveState {
   updatedAt?: string
 }
 
-const KEY = 'wc_match_states'
-
-function readAll(): Record<string, MatchLiveState> {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || '{}')
-  } catch {
-    return {}
-  }
-}
-
-function writeAll(data: Record<string, MatchLiveState>) {
-  localStorage.setItem(KEY, JSON.stringify(data))
-}
+export { loadMatchStates }
 
 export function getMatchLiveState(matchId: string): MatchLiveState | null {
-  return readAll()[matchId] || null
+  return getCachedMatchStates()[matchId] || null
 }
 
 export function setMatchLiveState(matchId: string, state: MatchLiveState) {
-  const all = readAll()
-  all[matchId] = { ...state, updatedAt: new Date().toISOString() }
-  writeAll(all)
+  const payload = { ...state, updatedAt: new Date().toISOString() }
+  saveMatchState(matchId, payload).catch(err => console.error('match_states save:', err))
 }
 
 export function getAllMatchLiveStates(): Record<string, MatchLiveState> {
-  return readAll()
+  return getCachedMatchStates()
 }
 
 export function applyMatchOverride(match: Match): Match {

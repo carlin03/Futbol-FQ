@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { calcTotal, calcTotalByDay, calcFantasyTotal, calcFantasyByDay, getAllMatches } from '../data/worldcup'
 import { getLocalScheduleDays, getLocalDayLabel, getGroupJornadas } from '../data/calendar'
 import FlagImg from './FlagImg'
-import { getPredictionRanking, getFantasyRanking } from '../utils/storage'
+import { fetchPredictionRanking, fetchFantasyRanking } from '../services/database'
+import type { RankingEntry } from '../utils/storage'
 
 interface Props {
   userId: string
@@ -48,10 +49,21 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
     ? calcFantasyTotal(fantasyAll)
     : calcFantasyByDay(fantasyAll, selectedDay)
 
-  const ranking = useMemo(() => {
-    return mode === 'quiniela'
-      ? getPredictionRanking(userId, selectedDay)
-      : getFantasyRanking(userId, selectedDay)
+  const [ranking, setRanking] = useState<RankingEntry[]>([])
+  const [rankingLoading, setRankingLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setRankingLoading(true)
+    const load = mode === 'quiniela'
+      ? fetchPredictionRanking(userId, selectedDay)
+      : fetchFantasyRanking(userId, selectedDay)
+    load.then(data => {
+      if (!cancelled) setRanking(data)
+    }).catch(console.error).finally(() => {
+      if (!cancelled) setRankingLoading(false)
+    })
+    return () => { cancelled = true }
   }, [mode, selectedDay, userId, predictions, fantasyAll])
 
   const userPoints = mode === 'quiniela' ? userQuinielaPts : userFantasyPts
@@ -165,7 +177,9 @@ export default function Leaderboard({ userId, username, predictions, fantasyAll 
       )}
 
       <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        {filtered.length === 0 ? (
+        {rankingLoading ? (
+          <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--text2)' }}>Cargando ranking…</p>
+        ) : filtered.length === 0 ? (
           <p style={{ margin: 0, padding: 24, textAlign: 'center', color: 'var(--text2)', fontSize: 14 }}>
             Aún no hay jugadores en el ranking. Regístrate e inicia sesión para aparecer con 0 pts.
           </p>

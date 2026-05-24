@@ -1,35 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  getForumPosts, addPost, toggleLike, addComment, deletePost, type ForumPost,
-} from '../utils/forum'
+  fetchForumPosts, addForumPost, toggleForumLike, addForumComment, deleteForumPost, type ForumPost,
+} from '../services/database'
 import { IconLike, IconComment, IconTrash, IconForum } from './Icons'
 
 interface Props {
+  userId: string
   username: string
   compact?: boolean
   maxPosts?: number
   onViewAll?: () => void
 }
 
-export default function ForumWidget({ username, compact = false, maxPosts = 5, onViewAll }: Props) {
-  const [posts, setPosts] = useState<ForumPost[]>(() => getForumPosts())
+export default function ForumWidget({ userId, username, compact = false, maxPosts = 5, onViewAll }: Props) {
+  const [posts, setPosts] = useState<ForumPost[]>([])
   const [newPost, setNewPost] = useState('')
   const [replyTo, setReplyTo] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
 
+  useEffect(() => {
+    fetchForumPosts().then(setPosts).catch(console.error)
+  }, [])
+
   const visible = posts.slice(0, maxPosts)
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!newPost.trim()) return
-    setPosts(addPost(username, newPost.trim()))
-    setNewPost('')
+    try {
+      setPosts(await addForumPost(userId, username, newPost.trim()))
+      setNewPost('')
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  const handleReply = (postId: string) => {
+  const handleReply = async (postId: string) => {
     if (!replyText.trim()) return
-    setPosts(addComment(postId, username, replyText.trim()))
-    setReplyText('')
-    setReplyTo(null)
+    try {
+      setPosts(await addForumComment(postId, userId, username, replyText.trim()))
+      setReplyText('')
+      setReplyTo(null)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -72,14 +85,14 @@ export default function ForumWidget({ username, compact = false, maxPosts = 5, o
                   </span>
                 </div>
                 {post.username === username && (
-                  <button onClick={() => setPosts(deletePost(post.id, username))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}>
+                  <button onClick={() => deleteForumPost(post.id, userId).then(setPosts).catch(console.error)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}>
                     <IconTrash size={14} />
                   </button>
                 )}
               </div>
               <p style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.5 }}>{post.text}</p>
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <button onClick={() => setPosts(toggleLike(post.id, username))} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: liked ? 'var(--red)' : 'var(--text2)', fontSize: 12, fontWeight: 600 }}>
+                <button onClick={() => toggleForumLike(post.id, username).then(setPosts).catch(console.error)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: liked ? 'var(--red)' : 'var(--text2)', fontSize: 12, fontWeight: 600 }}>
                   <IconLike size={14} color={liked ? 'var(--red)' : 'var(--text2)'} filled={liked} /> {post.likes.length}
                 </button>
                 <button onClick={() => setReplyTo(replyTo === post.id ? null : post.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text2)', fontSize: 12, fontWeight: 600 }}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { clearSession } from '../utils/storage'
+import { signOut } from '../services/database'
 import { IconBall, IconHome, IconGroups, IconFantasy, IconTrophy, IconForum, IconUser, IconSettings, IconLogout, IconChevron, IconStats, IconTarget } from './Icons'
 
 interface Props {
@@ -61,7 +61,7 @@ export default function Header({ page, navPage, setPage, username, onAdminClick 
               <button type="button" onClick={() => { setPage('profile'); setOpen(false) }} className="wc-dropdown-item" role="menuitem">
                 <IconUser size={14} /> Mi Perfil
               </button>
-              <button type="button" onClick={() => { clearSession(); window.location.reload() }} className="wc-dropdown-item danger" role="menuitem">
+              <button type="button" onClick={() => { signOut().then(() => window.location.reload()).catch(console.error) }} className="wc-dropdown-item danger" role="menuitem">
                 <IconLogout size={14} /> Cerrar sesión
               </button>
             </div>

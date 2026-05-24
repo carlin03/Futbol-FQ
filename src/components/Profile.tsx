@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { calcTotal, calcFantasyTotal, getAllMatches, GROUPS, formatCalendarDay } from '../data/worldcup'
 import FlagImg from './FlagImg'
-import { getUserProfile, updateUser } from '../utils/storage'
+import { fetchUserProfile, updateUserProfile } from '../services/database'
 import { IconUser, IconEdit, IconStats, IconTarget, IconFantasy } from './Icons'
 
 interface Props {
@@ -17,9 +17,16 @@ interface Props {
 
 export default function Profile({ userId, username, favTeam, predictions, fantasyAll, onBack, onProfileUpdate }: Props) {
   const [tab, setTab] = useState<'stats' | 'edit' | 'predictions' | 'fantasy'>('stats')
-  const profile = getUserProfile(userId, username)
-  const [form, setForm] = useState({ displayName: profile.displayName || username, bio: profile.bio, favTeam, avatarColor: profile.avatarColor })
+  const [profile, setProfile] = useState({ bio: '', displayName: username, avatarColor: '#f5c842' })
+  const [form, setForm] = useState({ displayName: username, bio: '', favTeam, avatarColor: '#f5c842' })
   const [saved, setSaved] = useState('')
+
+  useEffect(() => {
+    fetchUserProfile(userId, username).then(p => {
+      setProfile(p)
+      setForm({ displayName: p.displayName || username, bio: p.bio, favTeam, avatarColor: p.avatarColor })
+    }).catch(console.error)
+  }, [userId, username, favTeam])
 
   const allMatches = getAllMatches()
   const totalPoints = calcTotal(predictions)
@@ -27,11 +34,16 @@ export default function Profile({ userId, username, favTeam, predictions, fantas
   const predictedMatches = Object.keys(predictions).length
   const allTeams = Array.from(new Map(GROUPS.flatMap(g => g.matches.flatMap(m => [m.home, m.away])).map(t => [t.abbr, t])).values())
 
-  const handleSave = () => {
-    updateUser(userId, { displayName: form.displayName, bio: form.bio, favTeam: form.favTeam, avatarColor: form.avatarColor })
-    setSaved('Perfil actualizado')
-    onProfileUpdate?.(form.displayName, form.favTeam)
-    setTimeout(() => setSaved(''), 2500)
+  const handleSave = async () => {
+    try {
+      await updateUserProfile(userId, { displayName: form.displayName, bio: form.bio, favTeam: form.favTeam, avatarColor: form.avatarColor })
+      setProfile({ displayName: form.displayName, bio: form.bio, avatarColor: form.avatarColor })
+      setSaved('Perfil actualizado')
+      onProfileUpdate?.(form.displayName, form.favTeam)
+      setTimeout(() => setSaved(''), 2500)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const correctPredictions = Object.entries(predictions).filter(([id, pred]) => {
