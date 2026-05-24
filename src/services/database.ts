@@ -123,24 +123,34 @@ export async function fetchProfile(userId: string): Promise<DbProfile | null> {
   return data as DbProfile | null
 }
 
-export async function ensureUserProfile(userId: string): Promise<DbProfile> {
+export async function ensureUserProfile(
+  userId: string,
+  fromAuth?: { email?: string; username?: string; favTeam?: string },
+): Promise<DbProfile> {
   const existing = await fetchProfile(userId)
   if (existing) return existing
 
   const sb = requireSupabase()
-  const { data: authData, error: authError } = await sb.auth.getUser()
-  if (authError || !authData.user || authData.user.id !== userId) {
-    throw new Error('No se pudo cargar tu perfil')
+  let email = fromAuth?.email ?? ''
+  let username = fromAuth?.username?.trim()
+  const favTeam = fromAuth?.favTeam ?? ''
+
+  if (!email || !username) {
+    const { data: authData, error: authError } = await sb.auth.getUser()
+    if (authError || !authData.user || authData.user.id !== userId) {
+      throw new Error('No se pudo cargar tu perfil')
+    }
+    const user = authData.user
+    const meta = user.user_metadata || {}
+    email = user.email || email
+    username = String(meta.username || user.email?.split('@')[0] || 'jugador').trim()
   }
 
-  const user = authData.user
-  const meta = user.user_metadata || {}
-  const username = String(meta.username || user.email?.split('@')[0] || 'jugador').trim()
   const row = {
     id: userId,
     username,
-    email: user.email || '',
-    fav_team: String(meta.fav_team || ''),
+    email,
+    fav_team: favTeam || '',
     display_name: username,
   }
 

@@ -30,6 +30,15 @@ function Background() {
   )
 }
 
+function authMetaFromUser(user: { email?: string; user_metadata?: Record<string, unknown> }) {
+  const meta = user.user_metadata || {}
+  return {
+    email: user.email,
+    username: meta.username != null ? String(meta.username) : undefined,
+    favTeam: meta.fav_team != null ? String(meta.fav_team) : undefined,
+  }
+}
+
 export default function App() {
   const [session, setSessionState] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured())
@@ -42,8 +51,11 @@ export default function App() {
   const [predictions, setPredictionsState] = useState<Record<string, Prediction>>({})
   const [fantasyAll, setFantasyAll] = useState<Record<number, FantasyLineup>>({})
 
-  const hydrateUser = useCallback(async (userId: string) => {
-    const profile = await ensureUserProfile(userId)
+  const hydrateUser = useCallback(async (
+    userId: string,
+    fromAuth?: { email?: string; username?: string; favTeam?: string },
+  ) => {
+    const profile = await ensureUserProfile(userId, fromAuth)
     const s = await profileToSession(profile)
     setSessionState(s)
     void Promise.all([
@@ -63,35 +75,45 @@ export default function App() {
 
     const sb = requireSupabase()
     let mounted = true
+    let subscription: { unsubscribe: () => void } | null = null
+
+    const safetyTimer = window.setTimeout(() => {
+      if (mounted) setAuthLoading(false)
+    }, 8000)
 
     void (async () => {
       try {
         const { data, error } = await sb.auth.getSession()
+        if (!mounted) return
         if (error) throw error
-        if (data.session?.user && mounted) {
-          await hydrateUser(data.session.user.id)
+
+        const { data: { subscription: sub } } = sb.auth.onAuthStateChange((event, authSession) => {
+          if (event === 'INITIAL_SESSION') return
+          if (authSession?.user) {
+            void hydrateUser(authSession.user.id, authMetaFromUser(authSession.user)).catch(console.error)
+          } else {
+            setSessionState(null)
+            setPredictionsState({})
+            setFantasyAll({})
+          }
+        })
+        subscription = sub
+
+        if (data.session?.user) {
+          void hydrateUser(data.session.user.id, authMetaFromUser(data.session.user)).catch(console.error)
         }
       } catch (err) {
         console.error('Error al cargar sesión:', err)
       } finally {
+        window.clearTimeout(safetyTimer)
         if (mounted) setAuthLoading(false)
       }
     })()
 
-    const { data: { subscription } } = sb.auth.onAuthStateChange((event, authSession) => {
-      if (event === 'INITIAL_SESSION') return
-      if (authSession?.user) {
-        void hydrateUser(authSession.user.id).catch(console.error)
-      } else {
-        setSessionState(null)
-        setPredictionsState({})
-        setFantasyAll({})
-      }
-    })
-
     return () => {
       mounted = false
-      subscription.unsubscribe()
+      window.clearTimeout(safetyTimer)
+      subscription?.unsubscribe()
     }
   }, [hydrateUser])
 
@@ -120,7 +142,14 @@ export default function App() {
   const favTeam = session?.favTeam || ''
 
   const handleSetup = async (uid: string) => {
-    await hydrateUser(uid)
+    setAuthLoading(true)
+    try {
+      const sb = requireSupabase()
+      const { data } = await sb.auth.getUser()
+      await hydrateUser(uid, data.user ? authMetaFromUser(data.user) : undefined)
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   const handleSetPredictions = (p: Record<string, Prediction>) => {
