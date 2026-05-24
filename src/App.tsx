@@ -46,13 +46,14 @@ export default function App() {
     const profile = await ensureUserProfile(userId)
     const s = await profileToSession(profile)
     setSessionState(s)
-    const [preds, fantasy] = await Promise.all([
+    void Promise.all([
       fetchPredictions(userId),
       fetchFantasyAll(userId),
-    ])
-    setPredictionsState(preds)
-    setFantasyAll(fantasy)
-    await recordLogin(userId)
+    ]).then(([preds, fantasy]) => {
+      setPredictionsState(preds)
+      setFantasyAll(fantasy)
+    }).catch(console.error)
+    void recordLogin(userId).catch(console.error)
   }, [])
 
   useEffect(() => {
@@ -60,17 +61,30 @@ export default function App() {
       setAuthLoading(false)
       return
     }
+
     loadMatchStates().catch(console.error)
 
     const sb = requireSupabase()
-    sb.auth.getSession().then(async ({ data }) => {
-      if (data.session?.user) await hydrateUser(data.session.user.id)
-      setAuthLoading(false)
-    })
+    let mounted = true
 
-    const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, authSession) => {
+    void (async () => {
+      try {
+        const { data, error } = await sb.auth.getSession()
+        if (error) throw error
+        if (data.session?.user && mounted) {
+          await hydrateUser(data.session.user.id)
+        }
+      } catch (err) {
+        console.error('Error al cargar sesión:', err)
+      } finally {
+        if (mounted) setAuthLoading(false)
+      }
+    })()
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, authSession) => {
+      if (event === 'INITIAL_SESSION') return
       if (authSession?.user) {
-        await hydrateUser(authSession.user.id)
+        void hydrateUser(authSession.user.id).catch(console.error)
       } else {
         setSessionState(null)
         setPredictionsState({})
@@ -78,7 +92,10 @@ export default function App() {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [hydrateUser])
 
   const setPage = (p: string) => {
