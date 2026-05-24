@@ -1,13 +1,4 @@
-import { proxyFetch, queryPath } from '../lib/proxy'
-
-type Query = Record<string, string | string[] | undefined>
-type VercelReq = { method?: string; query: Query }
-type VercelRes = {
-  status: (code: number) => VercelRes
-  setHeader: (name: string, value: string) => void
-  send: (body: string) => void
-  json: (body: unknown) => void
-}
+import { proxyFetch, queryPath, type VercelReq, type VercelRes } from '../lib/proxy'
 
 export default async function handler(req: VercelReq, res: VercelRes) {
   const token = process.env.FOOTBALL_DATA_TOKEN || process.env.VITE_FOOTBALL_DATA_TOKEN

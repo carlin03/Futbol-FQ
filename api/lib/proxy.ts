@@ -1,7 +1,7 @@
 type Query = Record<string, string | string[] | undefined>
 
-type VercelReq = { method?: string; query: Query }
-type VercelRes = {
+export type VercelReq = { method?: string; query: Query }
+export type VercelRes = {
   status: (code: number) => VercelRes
   setHeader: (name: string, value: string) => void
   send: (body: string) => void
