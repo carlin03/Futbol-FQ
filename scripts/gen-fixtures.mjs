@@ -123,6 +123,17 @@ const order = 'ABCDEFGHIJKL'.split('')
 let out = `import type { Match, Team, Group } from './worldcup'
 
 type Fx = { home: Team; away: Team; cal: number; venue: string; city: string; kick: string; md: number }
+type GroupTeamMap = Record<string, Team>
+
+function teamsByAbbr(teams: readonly Team[]): GroupTeamMap {
+  return Object.fromEntries(teams.map(team => [team.abbr, team])) as GroupTeamMap
+}
+
+function pick(map: GroupTeamMap, abbr: string): Team {
+  const team = map[abbr]
+  if (!team) throw new Error(\`Equipo \${abbr} no existe en el grupo\`)
+  return team
+}
 
 function m(id: string, group: string, fx: Fx): Match {
   return {
@@ -138,17 +149,11 @@ function m(id: string, group: string, fx: Fx): Match {
 }
 
 /** Calendario oficial FIFA WC26 — 72 partidos fase de grupos (11–27 Jun 2026) */
-export function buildOfficialGroups(teams: Record<string, [Team, Team, Team, Team]>): Group[] {
+export function buildOfficialGroups(teams: Record<string, readonly Team[]>): Group[] {
 `
 
 for (const g of order) {
-  const [t1, t2, t3, t4] = Object.entries(teams).filter(([k]) => {
-    const ms = groupMatches[g]
-    return ms && ms.some(x => [x.h, x.a].includes(k))
-  }).map(([k]) => k)
-  // get team vars from group
-  const teamKeys = [...new Set(groupMatches[g].flatMap(x => [x.h, x.a]))]
-  out += `  const [${teamKeys.join(', ')}] = teams.${g}\n`
+  out += `  const ${g} = teamsByAbbr(teams.${g})\n`
 }
 
 out += `\n  return [\n`
@@ -156,7 +161,7 @@ for (const g of order) {
   out += `    { id: '${g}', name: 'Grupo ${g}',\n      matches: [\n`
   for (const x of groupMatches[g]) {
     const [venue, city] = V[x.vk]
-    out += `        m('${x.id}', '${g}', { home: ${x.h}, away: ${x.a}, cal: ${x.cal}, venue: '${venue.replace(/'/g, "\\'")}', city: '${city.replace(/'/g, "\\'")}', kick: '${x.kick}', md: ${x.md} }),\n`
+    out += `        m('${x.id}', '${g}', { home: pick(${g}, '${x.h}'), away: pick(${g}, '${x.a}'), cal: ${x.cal}, venue: '${venue.replace(/'/g, "\\'")}', city: '${city.replace(/'/g, "\\'")}', kick: '${x.kick}', md: ${x.md} }),\n`
   }
   out += `      ],\n    },\n`
 }
